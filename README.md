@@ -248,6 +248,7 @@ python main.py --num_prompts 120 --eval_type grad_ec --use_classifier --model_wt
 **Performance on Safe Prompts:** The performance of GreedyEC and GradEC on safe prompts can be evaluated using the bash scripts `greedy_ec_safe.sh` and `grad_ec_safe.sh`. The performance of RandEC will always be above erase-and-check as it only evaluates a subset of the erased subsequences, which only reduces its chances of misclassifying safe prompts.
 
 ## Installation
+need to config the env first!
 Follow the instructions below to set up the environment for the experiments.
 
 1. Install Anaconda:
