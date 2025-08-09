@@ -2,6 +2,10 @@
 # 1. HuggingFace tutorial on using DistillBert https://huggingface.co/distilbert/distilbert-base-uncased
 # 2. Huggingface tutorial on training transformers for sequence classification here: https://huggingface.co/docs/transformers/tasks/sequence_classification
 
+
+# note： env config！
+
+
 ### Importing libraries
 import argparse
 import warnings
