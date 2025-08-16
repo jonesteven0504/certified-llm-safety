@@ -28,7 +28,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "CPU")
 def read_text(filename):	
   with open(filename, "r") as f:
     lines = f.readlines()
-    lines = [l.strip() for l in lines]
+    lines = [l.strip() for l in lines]  # 去掉每一行首尾的空白字符
   return pd.DataFrame(lines)
 
 # Set seed
@@ -42,7 +42,10 @@ parser.add_argument('--safe_test', type=str, default='data/safe_prompts_test_ins
 parser.add_argument('--harmful_test', type=str, default='data/harmful_prompts_test.txt', help='File containing harmful prompts for testing')
 parser.add_argument('--save_path', type=str, default='models/distilbert_insertion.pt', help='Path to save the model')
 
+# 获取命令中的参数,具体的参数需要用属性的方式来获取并访问
 args = parser.parse_args()
+
+
 
 # Load safe and harmful prompts and create the dataset for training classifier
 # Class 1: Safe, Class 0: Harmful
@@ -61,19 +64,28 @@ train_text, val_text, train_labels, val_labels = train_test_split(prompt_data_tr
 # Count number of samples in each class in the training set
 count = train_labels.value_counts().to_dict()
 
+# ------------------构建模型---------------------
 # Load the tokenizer
+# 配置国内镜像站点，使模型能更快地加载起来
+import os
+os.environ['HF_ENDPOINT'] = 'https://hf-mirror.com'
+
 tokenizer = DistilBertTokenizer.from_pretrained('distilbert-base-uncased')
+
+
 
 # pass the pre-trained DistilBert to our define architecture
 model = DistilBertForSequenceClassification.from_pretrained('distilbert-base-uncased')
 # print(model)
 
+
+# -------------------数据预处理----------------
 # tokenize and encode sequences in the training set
 tokens_train = tokenizer.batch_encode_plus(
     train_text.tolist(),
-    max_length = 25,
+    max_length = 25,  # TODO:该参数作用？
     pad_to_max_length=True,
-    truncation=True
+    truncation=True # 该参数？
 )
 
 # tokenize and encode sequences in the validation set
@@ -123,6 +135,7 @@ model = model.to(device)
 # define the optimizer
 optimizer = AdamW(model.parameters(), lr = 1e-5)          # learning rate
 
+# ----------------模型训练----------------
 # from sklearn.utils.class_weight import compute_class_weight
 
 # #compute the class weights
@@ -256,7 +269,9 @@ def evaluate():
 
   return avg_loss, total_preds
 
-# set initial loss to infinite
+
+
+# set initial loss to infinite,确保第一次的模型，一定会被保存
 best_validation_loss = float('inf')
 
 # empty lists to store training and validation loss of each epoch
@@ -264,11 +279,11 @@ training_losses=[]
 validation_losses=[]
 train_flag = True
 
+# train_flag 可以控制是否进行训练的标识
 if train_flag == True:
     # for each epoch
     for epoch in range(epochs):
-        # Copilot Code Reference: Similar code with 2 license types [MIT, unknown]
-        # https://github.com/github-copilot/code_referencing?cursor=ca31ec3ebd8e24ea9127b39656a9ec6b&editor=vscode
+        
         print('\n Epoch {:} / {:}'.format(epoch + 1, epochs))
       
         #train model
@@ -290,7 +305,7 @@ if train_flag == True:
         print(f'\nTraining Loss: {training_loss:.3f}')
         print(f'Validation Loss: {validation_loss:.3f}')
 
-
+# ----------------TEST----------------
 # Test safety classifier
 safe_prompt_test = read_text(args.safe_test)
 harm_prompt_test = read_text(args.harmful_test)
@@ -308,6 +323,10 @@ tokens_test = tokenizer.batch_encode_plus(
     truncation=True
 )
 
+# 直观地查看tokens_test
+print(tokens_test)
+
+# convert lists to tensors
 test_seq = torch.tensor(tokens_test['input_ids'])
 test_mask = torch.tensor(tokens_test['attention_mask'])
 test_y = torch.tensor(test_labels.tolist())
@@ -319,10 +338,12 @@ model.load_state_dict(torch.load(path))
 model.eval()
 
 # get predictions for test data
+# 预测时，两个输入参数：test_seq和test_mask，分别对应输入的文本序列和对应的mask
 with torch.no_grad():
   preds = model(test_seq.to(device), test_mask.to(device))[0]
   preds = preds.detach().cpu().numpy()
 
+# 返回最终的预测结果标签（原始preds中每一列记录了对不同类别的预测概率）
 preds = np.argmax(preds, axis = 1)
 print(f'Testing Accuracy = {100*torch.sum(torch.tensor(preds) == test_y)/test_y.shape[0]}%')
 print(classification_report(test_y, preds))

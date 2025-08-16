@@ -4,6 +4,7 @@ This repository contains code for the paper [Certifying LLM Safety against Adver
 
 Contents:
 
+- [change log] (#change log)
 - [Introduction](#introduction)
 - [This Repository](#this-repository)
 - [Certified Accuracy](#certified-accuracy)
