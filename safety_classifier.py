@@ -23,7 +23,7 @@ from torch.utils.data import TensorDataset, DataLoader, WeightedRandomSampler, S
 
 # specify the available devices
 device = torch.device("cuda" if torch.cuda.is_available() else "CPU")
-
+# ——————————————————————********——————————————————————————————
 ## Function for reading the given file
 def read_text(filename):	
   with open(filename, "r") as f:

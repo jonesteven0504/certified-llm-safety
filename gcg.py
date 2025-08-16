@@ -4,6 +4,7 @@ from termcolor import colored
 import argparse
 import os
 
+# 使用GCG方法，对一个prompt生成有害的、隐蔽的后缀
 def gcg_suffix(input, model, tokenizer, word_embeddings, embedding_matrix,
                num_adv=10, num_iters=50, top_k=50, batch_size=500):
     """

@@ -1,3 +1,5 @@
+# 分割原始的prompt
+
 ## Erase and Check via approximate L0 optimization
 ## argmax_{mask} loss(prompt \odot mask) s.t. mak has least possible sparsity 
 
