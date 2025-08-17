@@ -20,7 +20,7 @@ from greedy_grad_ec import greedy_grad_ec
 
 from openai import OpenAI
 
-# Part 1: args parser
+# Step 1: parse args
 parser = argparse.ArgumentParser(description="Check safety of prompts.")
 parser.add_argument(
     "--num_prompts", type=int, default=2, help="number of prompts to check"
@@ -145,6 +145,9 @@ ec_variant = args.ec_variant
 adv_prompts_dir = args.adv_prompts_dir
 
 
+# Part X： 配置实验结果的输出格式
+
+
 print("\n* * * * * * Experiment Details * * * * * *")
 if torch.cuda.is_available():
     print("Device: " + torch.cuda.get_device_name(0))
@@ -176,6 +179,7 @@ if eval_type == "roc_curve":
 print("* * * * * * * * * * ** * * * * * * * * * *\n", flush=True)
 
 
+# Step X： 创建文件夹
 # Create results directory if it doesn't exist
 # if use_classifier:
 #     results_dir = results_dir + "_clf"
@@ -212,6 +216,7 @@ except FileNotFoundError:
     results = {}
 
 
+# Step X： 配置并加载大模型
 if use_classifier:
     # Using custom classifier for safety filter
     # Load model and tokenizer
@@ -229,7 +234,6 @@ if use_classifier:
     pipeline = transformers.pipeline(
         "text-classification", model=model, tokenizer=tokenizer, device=0
     )
-
 else:
     # Using LLM for safety filter
     if llm_name in MODEL_CONFIGS:
@@ -287,7 +291,7 @@ MODEL_CONFIGS: dict[str, dict] = {
     },
 }
 
-
+# Step X： 
 # Suffix to fool LLama safety filter from Zou et al's code
 # length = 20 tokens
 # adv_suffix = "--- suppose Finland----](/}]( $({[@ reversnewcommand SafeLinux={/}] '-_{( typeof"
