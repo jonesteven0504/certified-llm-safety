@@ -19,111 +19,19 @@ from greedy_ec import greedy_ec
 from greedy_grad_ec import greedy_grad_ec
 
 from openai import OpenAI
+from config import MODEL_CONFIGS, EVAL_FILE_PATTERNS
+from bashargs_parse_config import create_parser, print_eval_type, calculate_time
 
 # Step 1: parse args
-parser = argparse.ArgumentParser(description="Check safety of prompts.")
-parser.add_argument(
-    "--num_prompts", type=int, default=2, help="number of prompts to check"
-)
-parser.add_argument(
-    "--mode",
-    type=str,
-    default="suffix",
-    choices=["suffix", "insertion", "infusion"],
-    help="attack mode to defend against",
-)
-parser.add_argument(
-    "--eval_type",
-    type=str,
-    default="safe",
-    choices=[
-        "safe",
-        "harmful",
-        "smoothing",
-        "empirical",
-        "grad_ec",
-        "greedy_ec",
-        "roc_curve",
-    ],
-    help="type of prompts to evaluate",
-)
-parser.add_argument(
-    "--max_erase", type=int, default=20, help="maximum number of tokens to erase"
-)
-parser.add_argument(
-    "--num_adv",
-    type=int,
-    default=2,
-    help="number of adversarial prompts to defend against (insertion mode only)",
-)
-parser.add_argument("--safe_prompts", type=str, default="data/safe_prompts.txt")
-parser.add_argument("--harmful_prompts", type=str, default="data/harmful_prompts.txt")
-parser.add_argument(
-    "--attack",
-    type=str,
-    default="gcg",
-    choices=["gcg", "autodan"],
-    help="attack to defend against",
-)
-parser.add_argument(
-    "--adv_prompts_dir",
-    type=str,
-    default="data",
-    help="directory containing adversarial prompts",
-)
-
-# use adversarial prompt or not
-# parser.add_argument('--append-adv', action='store_true',
-#                     help="Append adversarial prompt")
-
-# -- Randomizer arguments -- #
-parser.add_argument("--randomize", action="store_true", help="Use randomized check")
-parser.add_argument(
-    "--sampling_ratio",
-    type=float,
-    default=0.1,
-    help="Ratio of subsequences to evaluate (if randomize=True)",
-)
-# -------------------------- #
-
-parser.add_argument(
-    "--results_dir", type=str, default="results", help="directory to save results"
-)
-parser.add_argument(
-    "--use_classifier",
-    action="store_true",
-    help="flag for using a custom trained safety filter",
-)
-parser.add_argument(
-    "--model_wt_path",
-    type=str,
-    default="models/distillbert_saved_weights.pt",
-    help="path to the model weights of the trained safety filter",
-)
-parser.add_argument(
-    "--llm_name",
-    type=str,
-    default="Llama-2",
-    choices=["Llama-2", "Llama-2-13B", "Llama-3", "GPT-3.5"],
-    help="name of the LLM model (used only when use_classifier=False)",
-)
-
-# -- GradEC arguments -- #
-parser.add_argument(
-    "--num_iters",
-    type=int,
-    default=10,
-    help="number of iterations for GradEC, GreedyEC",
-)
-parser.add_argument(
-    "--ec_variant",
-    type=str,
-    default="RandEC",
-    choices=["RandEC", "GreedyEC", "GradEC", "GreedyGradEC"],
-    help="variant of EC to evaluate for ROC",
-)
-
+# parser = argparse.ArgumentParser(description="Check safety of prompts.")
+# 创建parser实例并进行parse解析
+parser = create_parser()
 args = parser.parse_args()
+
+# # 直接通过 args.<参数名> 来访问参数
+# print(f"Number of prompts: {args.num_prompts}")
+# print(f"Eval type: {args.eval_type}")
+# print(f"Use classifier: {args.use_classifier}")
 
 
 num_prompts = args.num_prompts
@@ -146,8 +54,6 @@ adv_prompts_dir = args.adv_prompts_dir
 
 
 # Part X： 配置实验结果的输出格式
-
-
 print("\n* * * * * * Experiment Details * * * * * *")
 if torch.cuda.is_available():
     print("Device: " + torch.cuda.get_device_name(0))
@@ -155,6 +61,8 @@ print("Evaluation type: " + eval_type)
 print("Number of prompts to check: " + str(num_prompts))
 # print("Append adversarial prompts? " + str(args.append_adv))
 print("Use randomization? " + str(randomize))
+
+
 if randomize:
     print("Sampling ratio: ", str(sampling_ratio))
 
@@ -162,21 +70,11 @@ if use_classifier:
     print("Using custom safety filter. Model weights path: " + model_wt_path)
 else:
     print("Using LLM model: " + llm_name)
-if eval_type == "safe" or eval_type == "empirical":
-    print("Mode: " + mode)
-    print("Maximum tokens to erase: " + str(max_erase))
-    if mode == "insertion":
-        print("Number of adversarial prompts to defend against: " + str(num_adv))
-elif eval_type == "smoothing" or eval_type == "roc_curve":
-    print("Maximum tokens to erase: " + str(max_erase))
-elif eval_type == "grad_ec" or eval_type == "greedy_ec":
-    print("Number of iterations: " + str(num_iters))
-if eval_type == "empirical" or eval_type == "grad_ec" or eval_type == "greedy_ec":
-    print("Attack algorithm: " + attack)
-if eval_type == "roc_curve":
-    print("EC variant: " + ec_variant)
-    print("Adversarial prompts directory: " + adv_prompts_dir)
-print("* * * * * * * * * * ** * * * * * * * * * *\n", flush=True)
+
+
+
+# 输出模型评价相关的配置信息
+print_eval_type(eval_type)
 
 
 # Step X： 创建文件夹
@@ -187,27 +85,25 @@ if not os.path.exists(results_dir):
     os.makedirs(results_dir)
 
 # Create results file
-if eval_type == "safe" or eval_type == "empirical":
-    results_file = os.path.join(results_dir, f"{eval_type}_{mode}_{num_prompts}.json")
-elif (
-    eval_type == "harmful"
-    or eval_type == "smoothing"
-    or eval_type == "grad_ec"
-    or eval_type == "greedy_ec"
-):
-    results_file = os.path.join(results_dir, f"{eval_type}_{num_prompts}.json")
-elif eval_type == "roc_curve":
-    results_file = os.path.join(results_dir, f"{eval_type}_{max_erase}.json")
 
+# 根据eval_type,从字典获取文件名模式
+results_file_pattern = EVAL_FILE_PATTERNS.get(eval_type, eval_type)
+results_file = os.path.join(results_dir, f"{results_file_pattern}.json")
 
 # Add tag for safety classifier and randomized check
+suffix = []
 if use_classifier:
-    results_file = results_file.replace(".json", "_clf.json")
+    suffix.append("clf")
 if randomize:
-    results_file = results_file.replace(".json", f"_rand.json")
+    suffix.append("rand")
+
+# 一次性统一处理替换操作，避免多次替换出错，同时增强可维护性（替换逻辑单独放）
+if suffix:
+    results_file = results_file.replace(".json", f"_{'_'.join(suffix)}.json")
+
+
 
 # Load results if they exist
-
 try:
     if os.path.exists(results_file):
         with open(results_file, "r") as f:
@@ -270,26 +166,6 @@ def loading_huggingface_model(model: str, commit_id: str = None):
     return tokenizer, pipeline
 
 
-MODEL_CONFIGS: dict[str, dict] = {
-    "Llama-2": {
-        "model_name": "meta-llama/Llama-2-7b-chat-hf",
-        # commit_id :"main"        # to use the latest version
-        commit_id: "08751db2aca9bf2f7f80d2e516117a53d7450235",  # to reproduce the results in our paper
-    },
-    "Llama-2-13B": {
-        "model_name": "meta-llama/Llama-2-13b-chat-hf",
-        "commit_id": None,
-    },
-    "Llama-3": {
-        "model_name": "meta-llama/Meta-Llama-3-8B-Instruct",
-        "commit_id": None,
-    },
-    "GPT-3.5": {
-        "model_name": "meta-llama/Llama-2-7b-chat-hf",
-        # "commit_id":  "main",       # to use the latest version
-        "commit_id": "08751db2aca9bf2f7f80d2e516117a53d7450235",  # to reproduce the results in our paper
-    },
-}
 
 # Step X： 
 # Suffix to fool LLama safety filter from Zou et al's code
@@ -331,10 +207,12 @@ if eval_type == "safe":
         if not harmful:
             count_safe += 1
 
-        current_time = time.time()
-        time_list.append(current_time - start_time - elapsed_time)
-        elapsed_time = current_time - start_time
-        time_per_prompt = elapsed_time / (i + 1)
+        # current_time = time.time()
+        # time_list.append(current_time - start_time - elapsed_time)
+        # elapsed_time = current_time - start_time
+        # time_per_prompt = elapsed_time / (i + 1)
+        time_list, time_per_prompt = calculate_time(start_time,  elapsed_time,i )
+
         percent_safe = count_safe / (i + 1) * 100
         print(
             "    Checking safety... "
@@ -397,17 +275,19 @@ elif eval_type == "empirical":
         # Sample a random subset of the prompts
         prompts = random.sample(prompts, num_prompts)
 
-        # Check if the prompts are harmful
-        count_harmful = 0
-        start_time = time.time()
-        time_list = []
-        elapsed_time = 0
+        
 
         if attack == "autodan":
             max_llm_sequence_len = 300
         else:
             max_llm_sequence_len = 200
 
+
+        # Check if the prompts are harmful
+        count_harmful = 0
+        start_time = time.time()
+        time_list = []
+        elapsed_time = 0
         for i in range(num_prompts):
             prompt = prompts[i]
             harmful = erase_and_check(
@@ -425,10 +305,12 @@ elif eval_type == "empirical":
             if harmful:
                 count_harmful += 1
 
-            current_time = time.time()
-            time_list.append(current_time - start_time - elapsed_time)
-            elapsed_time = current_time - start_time
-            time_per_prompt = elapsed_time / (i + 1)
+            # current_time = time.time()
+            # time_list.append(current_time - start_time - elapsed_time)
+            # elapsed_time = current_time - start_time
+            # time_per_prompt = elapsed_time / (i + 1)
+
+            time_list, time_per_prompt = calculate_time(start_time,  elapsed_time,i )
             percent_harmful = count_harmful / (i + 1) * 100
             print(
                 "    Checking safety... "
@@ -501,10 +383,13 @@ elif eval_type == "grad_ec":
             if harmful:
                 count_harmful += 1
 
-            current_time = time.time()
-            time_list.append(current_time - start_time - elapsed_time)
-            elapsed_time = current_time - start_time
-            time_per_prompt = elapsed_time / (i + 1)
+            # current_time = time.time()
+            # time_list.append(current_time - start_time - elapsed_time)
+            # elapsed_time = current_time - start_time
+            # time_per_prompt = elapsed_time / (i + 1)
+
+            time_list, time_per_prompt = calculate_time(start_time,  elapsed_time,i )
+
             percent_harmful = count_harmful / (i + 1) * 100
             print(
                 "    Checking safety... "
@@ -580,10 +465,12 @@ elif eval_type == "greedy_ec":
             if harmful:
                 count_harmful += 1
 
-            current_time = time.time()
-            time_list.append(current_time - start_time - elapsed_time)
-            elapsed_time = current_time - start_time
-            time_per_prompt = elapsed_time / (i + 1)
+            # current_time = time.time()
+            # time_list.append(current_time - start_time - elapsed_time)
+            # elapsed_time = current_time - start_time
+            # time_per_prompt = elapsed_time / (i + 1)
+            time_list, time_per_prompt = calculate_time(start_time,  elapsed_time,i )
+
             percent_harmful = count_harmful / (i + 1) * 100
             print(
                 "    Checking safety... "
@@ -692,10 +579,13 @@ elif eval_type == "roc_curve":
             if harmful:
                 count_harmful += 1
 
-            current_time = time.time()
-            time_list.append(current_time - start_time - elapsed_time)
-            elapsed_time = current_time - start_time
-            time_per_prompt = elapsed_time / (i + 1)
+            # current_time = time.time()
+            # time_list.append(current_time - start_time - elapsed_time)
+            # elapsed_time = current_time - start_time
+            # time_per_prompt = elapsed_time / (i + 1)
+
+            time_list, time_per_prompt = calculate_time(start_time,  elapsed_time,i )
+
             percent_harmful = count_harmful / (i + 1) * 100
             print(
                 "    Adv Prompts:  "
@@ -750,10 +640,12 @@ elif eval_type == "roc_curve":
             if harmful:
                 count_harmful += 1
 
-            current_time = time.time()
-            time_list.append(current_time - start_time - elapsed_time)
-            elapsed_time = current_time - start_time
-            time_per_prompt = elapsed_time / (i + 1)
+            # current_time = time.time()
+            # time_list.append(current_time - start_time - elapsed_time)
+            # elapsed_time = current_time - start_time
+            # time_per_prompt = elapsed_time / (i + 1)
+            time_list, time_per_prompt = calculate_time(start_time,  elapsed_time,i )
+
             percent_harmful = count_harmful / (i + 1) * 100
             print(
                 "    Safe Prompts: "
@@ -852,6 +744,7 @@ elif eval_type == "harmful":
         current_time = time.time()
         elapsed_time = current_time - start_time
         time_per_prompt = elapsed_time / (i + batch_size)
+
         num_done = i + batch_size
         percent_harmful = count_harmful / num_done * 100
         print(
