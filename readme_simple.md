@@ -6,6 +6,16 @@
 - 核心：训练一个“安全的训练分类器”
 
 
+## step0: 确保顺利加载模型
+- 修改预训练模型的默认加载路径，使用hugging_face的国内镜像站点
+- 在hugging_face进行注册，获取token，然后将token全部设置到conda环境中，便于后续使用
+- 
+
+
+
+
+
+
 
 ## step1： 训练分类器
 python safety_classifier.py 
