@@ -20,7 +20,7 @@ from greedy_grad_ec import greedy_grad_ec
 
 from openai import OpenAI
 from config import MODEL_CONFIGS, EVAL_FILE_PATTERNS
-from bashargs_parse_config import create_parser, print_eval_type, calculate_time,check_is_harmful_evaltype_safe, check_is_harmful_evaltype_empirical, check_is_harmful_evaltype_grad_ec, check_is_harmful_evaltype_greedy_ec
+from bashargs_parse_config import create_parser, print_eval_type, calculate_time,check_is_harmful_evaltype_safe, check_is_harmful_evaltype_empirical, check_is_harmful_evaltype_grad_ec, check_is_harmful_evaltype_greedy_ec, choose_prompts
 
 # Step 1: parse args
 # parser = argparse.ArgumentParser(description="Check safety of prompts.")
@@ -173,13 +173,9 @@ def loading_huggingface_model(model: str, commit_id: str = None):
 if eval_type == "safe":
     # Safe prompts
     print("\nEvaluating safe prompts from: " + safe_prompts_file + "\n")
-    # Load prompts from text file
-    with open(safe_prompts_file, "r") as f:
-        prompts = f.readlines()
-        prompts = [prompt.strip() for prompt in prompts]
-
-    # Sample a random subset of the prompts
-    prompts = random.sample(prompts, num_prompts)
+    
+    prompts = choose_prompts(eval_type= "safe", prompts_file= safe_prompts_file, num_prompts)
+    
 
     percent_safe, time_per_prompt,percent_safe_se, time_per_prompt_se = check_is_harmful_evaltype_safe(mode= "safe" ,eval_type="safe",prompts = prompts, pipeline= pipeline,num_prompts, max_erase, num_adv, randomize,sampling_ratio,llm_name, model= None,  tokenizer= tokenizer,max_llm_sequence_len=None)
     
@@ -216,20 +212,9 @@ elif eval_type == "empirical":
         else:
             adv_prompts_file = "data/adversarial_prompts_t_" + str(adv_tok) + ".txt"
         print("Evaluating on adversarial prompts from: " + adv_prompts_file)
-        # Load prompts from text file
-        with open(adv_prompts_file, "r") as f:
-            prompts = f.readlines()
-            prompts = [prompt.strip() for prompt in prompts]
-            if attack == "autodan":
-                prompts = [ast.literal_eval(prompt) for prompt in prompts]
-
-        # for prompt in prompts[:5]:
-        #     print(prompt)
-        # exit()
-
-        # Sample a random subset of the prompts
-        prompts = random.sample(prompts, num_prompts)
-
+   
+    
+        prompts = choose_prompts(eval_type= "empirical", prompts_file= adv_prompts_file, num_prompts = num_prompts)
         
 
         if attack == "autodan":
@@ -267,14 +252,14 @@ elif eval_type == "grad_ec":
     emp_results = {}
     for adv_tok in range(0, 21, 2):
         adv_prompts_file = "data/adversarial_prompts_t_" + str(adv_tok) + ".txt"
-        print("Evaluating on adversarial prompts from: " + adv_prompts_file)
-        # Load prompts from text file
-        with open(adv_prompts_file, "r") as f:
-            prompts = f.readlines()
-            prompts = [prompt.strip() for prompt in prompts]
 
-        # Sample a random subset of the prompts
-        prompts = random.sample(prompts, num_prompts)
+        print("Evaluating on adversarial prompts from: " + adv_prompts_file)
+
+
+        
+
+        prompts = choose_prompts(eval_type= "grad_ec", prompts_file= adv_prompts_file, num_prompts= num_prompts)
+
 
         percent_safe, time_per_prompt,percent_safe_se, time_per_prompt_se  = check_is_harmful_evaltype_safe(mode= "harmful",eval_type="grad_ec",prompts=prompts, model= model, mode ,num_prompts, max_erase, num_adv, randomize,sampling_ratio,llm_name, tokenizer= tokenizer, max_llm_sequence_len= None)
         
@@ -311,15 +296,11 @@ elif eval_type == "greedy_ec":
             adv_prompts_file = "data/adversarial_prompts_t_" + str(adv_tok) + ".txt"
 
         print("Evaluating on adversarial prompts from: " + adv_prompts_file)
-        # Load prompts from text file
-        with open(adv_prompts_file, "r") as f:
-            prompts = f.readlines()
-            prompts = [prompt.strip() for prompt in prompts]
-            if attack == "autodan":
-                prompts = [ast.literal_eval(prompt) for prompt in prompts]
+        
 
-        # Sample a random subset of the prompts
-        prompts = random.sample(prompts, num_prompts)
+        prompts = choose_prompts(eval_type= "greedy_ec", prompts_file= adv_prompts_file, num_prompts= num_prompts)
+
+
 
         percent_safe, time_per_prompt,percent_safe_se, time_per_prompt_se = check_is_harmful_evaltype_greedy_ec(eval_type="greedy_ec",prompts=prompts, model= model, mode="harmful",num_prompts, max_erase, num_adv, randomize,sampling_ratio,llm_name, tokenizer= tokenizer,max_llm_sequence_len= None)
         
@@ -405,13 +386,9 @@ elif eval_type == "smoothing":
         "Evaluating smoothing-based certificates on harmful prompts from: "
         + harmful_prompts_file
     )
-    # Load prompts from text file
-    with open(harmful_prompts_file, "r") as f:
-        prompts = f.readlines()
-        prompts = [prompt.strip() for prompt in prompts]
 
-    # Sample a random subset of the prompts
-    prompts = random.sample(prompts, num_prompts)
+    
+    prompts = choose_prompts(eval_type= "smoothing", prompts_file= harmful_prompts_file, num_prompts = num_prompts)
 
     # List of certified lengths
     certified_length = [0] * num_prompts
@@ -447,16 +424,12 @@ elif eval_type == "smoothing":
 elif eval_type == "harmful":
     # Harmful prompts
     print("\nEvaluating harmful prompts from: " + harmful_prompts_file + "\n")
-    # Load prompts from text file
-    with open(harmful_prompts_file, "r") as f:
-        prompts = f.readlines()
-        prompts = [prompt.strip() for prompt in prompts]
 
-    # Sample a random subset of the prompts
-    if num_prompts <= len(prompts):
-        prompts = random.sample(prompts, num_prompts)
-    else:
-        prompts = random.choices(prompts, k=num_prompts)
+
+    
+
+    prompts = choose_prompts(eval_type= "harmful", prompts_file= harmful_prompts_file, num_prompts = num_prompts)
+
 
     # Optionally append adversarial suffix
     # if args.append_adv:

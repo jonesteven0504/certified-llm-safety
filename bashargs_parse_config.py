@@ -355,3 +355,56 @@ def check_is_harmful_evaltype_harmful(mode, eval_type ,prompts, pipeline, mode ,
     percent_harmful_se = 0
     return percent_harmful, time_per_prompt,percent_harmful_se, time_per_prompt_se
 
+
+# 以下函数决定了，会如何构造prompts:
+
+import random
+safe_prompts_file
+def  choose_prompts(eval_type, prompts_file, num_prompts):
+    if eval_type == "safe":
+        prompts = random_choose_prompts(prompts_file= prompts_file, num_prompts= num_prompts)   # prompts_file:safe_prompts_file
+    elif eval_type == "empirical":
+        
+        prompts = empirical_choose_prompts(ast, adv_prompts_file= prompts_file, num_prompts= num_prompts)   # prompts_file
+    elif eval_type == "grad_ec":
+        prompts = random_choose_prompts(prompts_file= prompts_file, num_prompts= num_prompts) # prompts_file:adv_prompts_file
+    elif eval_type == "safe":
+        prompts = empirical_choose_prompts(ast, adv_prompts_file= prompts_file, num_prompts= num_prompts)
+    elif eval_type == "smoothing":
+        prompts = random_choose_prompts(prompts_file= prompts_file, num_prompts= num_prompts) 
+    elif eval_type == "harmful":
+        prompts = random_choose_prompts(prompts_file= prompts_file, num_prompts= num_prompts) 
+
+
+    return prompts
+
+def random_choose_prompts(prompts_file, num_prompts):
+    with open(prompts_file, "r") as f:
+        prompts = f.readlines()
+        prompts = [prompt.strip() for prompt in prompts]
+
+    # Sample a random subset of the prompts
+    # prompts = random.sample(prompts, num_prompts)
+
+    if num_prompts <= len(prompts):
+        prompts = random.sample(prompts, num_prompts)
+    else:
+        prompts = random.choices(prompts, k=num_prompts)
+
+
+    return prompts
+
+
+def empirical_choose_prompts(attack: str, ast, adv_prompts_file, num_prompts):
+    # Empirical performance on adversarial prompts
+
+    with open(adv_prompts_file, "r") as f:
+        prompts = f.readlines()
+        prompts = [prompt.strip() for prompt in prompts]
+    if attack == "autodan":
+        prompts = [ast.literal_eval(prompt) for prompt in prompts]
+    prompts = random.sample(prompts, num_prompts)
+    return prompts
+
+
+    
