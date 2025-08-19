@@ -33,7 +33,6 @@ args = parser.parse_args()
 # print(f"Eval type: {args.eval_type}")
 # print(f"Use classifier: {args.use_classifier}")
 
-
 num_prompts = args.num_prompts
 mode = args.mode
 eval_type = args.eval_type
@@ -100,8 +99,6 @@ if randomize:
 # 一次性统一处理替换操作，避免多次替换出错，同时增强可维护性（替换逻辑单独放）
 if suffix:
     results_file = results_file.replace(".json", f"_{'_'.join(suffix)}.json")
-
-
 
 # Load results if they exist
 try:
@@ -184,51 +181,8 @@ if eval_type == "safe":
     # Sample a random subset of the prompts
     prompts = random.sample(prompts, num_prompts)
 
-    percent_safe, time_per_prompt,percent_safe_se, time_per_prompt_se = check_is_harmful_evaltype_safe(prompts = prompts, pipeline= pipeline,mode ,num_prompts, max_erase, num_adv, randomize,sampling_ratio,llm_name, model= None,  tokenizer= tokenizer,max_llm_sequence_len=None)
-    # # Check if the prompts are harmful
-    # count_safe = 0
-    # start_time = time.time()
-    # time_list = []
-    # elapsed_time = 0
-    # for i in range(num_prompts):
-    #     prompt = prompts[i]
-    #     # if args.append_adv: prompt += adv_suffix
-    #     harmful = erase_and_check(
-    #         prompt,
-    #         pipeline,
-    #         tokenizer,
-    #         max_erase=max_erase,
-    #         num_adv=num_adv,
-    #         randomized=randomize,
-    #         prompt_sampling_ratio=sampling_ratio,
-    #         mode=mode,
-    #         llm_name=llm_name,
-    #     )
-
-    #     if not harmful:
-    #         count_safe += 1
-
-    #     # current_time = time.time()
-    #     # time_list.append(current_time - start_time - elapsed_time)
-    #     # elapsed_time = current_time - start_time
-    #     # time_per_prompt = elapsed_time / (i + 1)
-    #     time_list, time_per_prompt = calculate_time(start_time,  elapsed_time,i )
-
-    #     percent_safe = count_safe / (i + 1) * 100
-    #     print(
-    #         "    Checking safety... "
-    #         + progress_bar((i + 1) / num_prompts)
-    #         + f" Detected safe = {percent_safe:5.1f}%"
-    #         + f" Time/prompt = {time_per_prompt:5.1f}s",
-    #         end="\r",
-    #         flush=True,
-    #     )
-
-    # # Compute standard error of the average time per prompt
-    # time_per_prompt_se = torch.tensor(time_list).std().item() / (num_prompts**0.5)
-
-    # # Compute standard error of the percentage of safe prompts
-    # percent_safe_se = (percent_safe * (100 - percent_safe) / (num_prompts - 1)) ** 0.5
+    percent_safe, time_per_prompt,percent_safe_se, time_per_prompt_se = check_is_harmful_evaltype_safe(mode= "safe" ,eval_type="safe",prompts = prompts, pipeline= pipeline,num_prompts, max_erase, num_adv, randomize,sampling_ratio,llm_name, model= None,  tokenizer= tokenizer,max_llm_sequence_len=None)
+    
 
     # Save results
     if mode == "insertion":
@@ -283,53 +237,9 @@ elif eval_type == "empirical":
         else:
             max_llm_sequence_len = 200
 
-        percent_safe, time_per_prompt,percent_safe_se, time_per_prompt_se = check_is_harmful_evaltype_empirical(prompts=prompts, pipeline= pipeline, mode ,num_prompts, max_erase, num_adv, randomize,sampling_ratio,llm_name, tokenizer = tokenizer, max_llm_sequence_len=max_llm_sequence_len)
+        percent_safe, time_per_prompt,percent_safe_se, time_per_prompt_se = check_is_harmful_evaltype_safe(mode= "harmful",eval_type= "empirical",prompts=prompts, pipeline= pipeline, mode ,num_prompts, max_erase, num_adv, randomize,sampling_ratio,llm_name, tokenizer = tokenizer, max_llm_sequence_len=max_llm_sequence_len)
 
-        # # Check if the prompts are harmful
-        # count_harmful = 0
-        # start_time = time.time()
-        # time_list = []
-        # elapsed_time = 0
-        # for i in range(num_prompts):
-        #     prompt = prompts[i]
-        #     harmful = erase_and_check(
-        #         prompt,
-        #         pipeline,
-        #         tokenizer,
-        #         max_erase=max_erase,
-        #         num_adv=num_adv,
-        #         randomized=randomize,
-        #         prompt_sampling_ratio=sampling_ratio,
-        #         mode=mode,
-        #         max_llm_sequence_len=max_llm_sequence_len,
-        #     )
-
-        #     if harmful:
-        #         count_harmful += 1
-
-        #     # current_time = time.time()
-        #     # time_list.append(current_time - start_time - elapsed_time)
-        #     # elapsed_time = current_time - start_time
-        #     # time_per_prompt = elapsed_time / (i + 1)
-
-        #     time_list, time_per_prompt = calculate_time(start_time,  elapsed_time,i )
-        #     percent_harmful = count_harmful / (i + 1) * 100
-        #     print(
-        #         "    Checking safety... "
-        #         + progress_bar((i + 1) / num_prompts)
-        #         + f" Detected harmful = {percent_harmful:5.1f}%"
-        #         + f" Time/prompt = {time_per_prompt:5.1f}s",
-        #         end="\r",
-        #         flush=True,
-        #     )
-
-        # # Compute standard error of the average time per prompt
-        # time_per_prompt_se = torch.tensor(time_list).std().item() / (num_prompts**0.5)
-
-        # # Compute standard error of the percentage of harmful prompts
-        # percent_harmful_se = (
-        #     percent_harmful * (100 - percent_harmful) / (num_prompts - 1)
-        # ) ** 0.5
+        
 
         print("")
 
@@ -366,52 +276,8 @@ elif eval_type == "grad_ec":
         # Sample a random subset of the prompts
         prompts = random.sample(prompts, num_prompts)
 
-        percent_safe, time_per_prompt,percent_safe_se, time_per_prompt_se  = check_is_harmful_evaltype_grad_ec(prompts=prompts, model= model, mode ,num_prompts, max_erase, num_adv, randomize,sampling_ratio,llm_name, tokenizer= tokenizer, max_llm_sequence_len= None)
-        # # Check if the prompts are harmful
-        # count_harmful = 0
-        # start_time = time.time()
-        # time_list = []
-        # elapsed_time = 0
-        # for i in range(num_prompts):
-        #     prompt = prompts[i]
-        #     harmful, _ = grad_ec(
-        #         prompt,
-        #         model,
-        #         tokenizer,
-        #         model.distilbert.embeddings.word_embeddings,
-        #         num_iters=num_iters,
-        #     )  # , init_temp=float(num_iters/100), reg_const=1e-3)
-
-        #     # harmful = is_harmful(prompt, model, tokenizer, num_iters=num_iters, init_temp=float(num_iters/100), reg_const=1e-3)
-        #     if harmful:
-        #         count_harmful += 1
-
-        #     # current_time = time.time()
-        #     # time_list.append(current_time - start_time - elapsed_time)
-        #     # elapsed_time = current_time - start_time
-        #     # time_per_prompt = elapsed_time / (i + 1)
-
-        #     time_list, time_per_prompt = calculate_time(start_time,  elapsed_time,i )
-
-        #     percent_harmful = count_harmful / (i + 1) * 100
-        #     print(
-        #         "    Checking safety... "
-        #         + progress_bar((i + 1) / num_prompts)
-        #         + f" Detected harmful = {percent_harmful:5.1f}%"
-        #         + f" Time/prompt = {time_per_prompt:5.1f}s",
-        #         end="\r",
-        #         flush=True,
-        #     )
-
-        # print("")
-
-        # # Compute standard error of the average time per prompt
-        # time_per_prompt_se = torch.tensor(time_list).std().item() / (num_prompts**0.5)
-
-        # # Compute standard error of the percentage of harmful prompts
-        # percent_harmful_se = (
-        #     percent_harmful * (100 - percent_harmful) / (num_prompts - 1)
-        # ) ** 0.5
+        percent_safe, time_per_prompt,percent_safe_se, time_per_prompt_se  = check_is_harmful_evaltype_safe(mode= "harmful",eval_type="grad_ec",prompts=prompts, model= model, mode ,num_prompts, max_erase, num_adv, randomize,sampling_ratio,llm_name, tokenizer= tokenizer, max_llm_sequence_len= None)
+        
 
         # Save results
         emp_results[str(dict(adv_tok=adv_tok))] = dict(
@@ -455,45 +321,9 @@ elif eval_type == "greedy_ec":
         # Sample a random subset of the prompts
         prompts = random.sample(prompts, num_prompts)
 
-        percent_safe, time_per_prompt,percent_safe_se, time_per_prompt_se = check_is_harmful_evaltype_greedy_ec(prompts=prompts, model= model, mode ,num_prompts, max_erase, num_adv, randomize,sampling_ratio,llm_name, tokenizer= tokenizer,max_llm_sequence_len= None)
-        # # Check if the prompts are harmful
-        # count_harmful = 0
-        # start_time = time.time()
-        # time_list = []
-        # elapsed_time = 0
-        # for i in range(num_prompts):
-        #     prompt = prompts[i]
-        #     harmful = greedy_ec(prompt, model, tokenizer, num_iters=num_iters)
-
-        #     # harmful = is_harmful(prompt, model, tokenizer, num_iters=num_iters, init_temp=float(num_iters/100), reg_const=1e-3)
-        #     if harmful:
-        #         count_harmful += 1
-
-        #     # current_time = time.time()
-        #     # time_list.append(current_time - start_time - elapsed_time)
-        #     # elapsed_time = current_time - start_time
-        #     # time_per_prompt = elapsed_time / (i + 1)
-        #     time_list, time_per_prompt = calculate_time(start_time,  elapsed_time,i )
-
-        #     percent_harmful = count_harmful / (i + 1) * 100
-        #     print(
-        #         "    Checking safety... "
-        #         + progress_bar((i + 1) / num_prompts)
-        #         + f" Detected harmful = {percent_harmful:5.1f}%"
-        #         + f" Time/prompt = {time_per_prompt:5.1f}s",
-        #         end="\r",
-        #         flush=True,
-        #     )
-
-        # print("")
-
-        # # Compute standard error of the average time per prompt
-        # time_per_prompt_se = torch.tensor(time_list).std().item() / (num_prompts**0.5)
-
-        # # Compute standard error of the percentage of harmful prompts
-        # percent_harmful_se = (
-        #     percent_harmful * (100 - percent_harmful) / (num_prompts - 1)
-        # ) ** 0.5
+        percent_safe, time_per_prompt,percent_safe_se, time_per_prompt_se = check_is_harmful_evaltype_greedy_ec(eval_type="greedy_ec",prompts=prompts, model= model, mode="harmful",num_prompts, max_erase, num_adv, randomize,sampling_ratio,llm_name, tokenizer= tokenizer,max_llm_sequence_len= None)
+        
+        
 
         # Save results
         emp_results[str(dict(adv_tok=adv_tok))] = dict(
@@ -543,126 +373,26 @@ elif eval_type == "roc_curve":
     for frac in np.arange(0.0, 1.01, 0.1):
         print(f"  Fraction = {frac:.2f}")
 
-        # Check if the prompts are harmful
-        count_harmful = 0
-        start_time = time.time()
-        time_list = []
-        elapsed_time = 0
-        for i in range(len(adv_prompts)):
-            prompt = adv_prompts[i]
-            if ec_variant == "RandEC":
-                harmful = erase_and_check(
-                    prompt,
-                    pipeline,
-                    tokenizer,
-                    max_erase=2 * max_erase,
-                    randomized=True,
-                    prompt_sampling_ratio=frac,
-                )
-            elif ec_variant == "GreedyEC":
-                harmful = greedy_ec(
-                    prompt, model, tokenizer, num_iters=int(frac * max_erase)
-                )
-            elif ec_variant == "GradEC":
-                harmful, _ = grad_ec(
-                    prompt,
-                    model,
-                    tokenizer,
-                    model.distilbert.embeddings.word_embeddings,
-                    num_iters=int(2 * frac * max_erase),
-                )
-            elif ec_variant == "GreedyGradEC":
-                harmful = greedy_grad_ec(
-                    prompt,
-                    model,
-                    tokenizer,
-                    model.distilbert.embeddings.word_embeddings,
-                    num_iters=int(2 * frac * max_erase),
-                )
+        print("    Adv Prompts:  ")
 
-            if harmful:
-                count_harmful += 1
+        percent_match, time_per_prompt,percent_matches_se, time_per_prompt_se = check_is_harmful_evaltype_safe(eval_type="roc_curve",prompts=adv_prompts, model= model, mode="harmful",num_prompts, max_erase, num_adv, randomize,sampling_ratio,llm_name, tokenizer= tokenizer,max_llm_sequence_len= None)
 
-            # current_time = time.time()
-            # time_list.append(current_time - start_time - elapsed_time)
-            # elapsed_time = current_time - start_time
-            # time_per_prompt = elapsed_time / (i + 1)
 
-            time_list, time_per_prompt = calculate_time(start_time,  elapsed_time,i )
+        roc["tpr"].append(percent_match)
 
-            percent_harmful = count_harmful / (i + 1) * 100
-            print(
-                "    Adv Prompts:  "
-                + progress_bar((i + 1) / len(adv_prompts))
-                + f" Detected harmful = {percent_harmful:5.1f}%"
-                + f" Time/prompt = {time_per_prompt:5.1f}s",
-                end="\r",
-                flush=True,
-            )
 
-        print("")
-
-        roc["tpr"].append(percent_harmful)
 
         # Check if the prompts are harmful
-        count_harmful = 0
-        start_time = time.time()
-        time_list = []
-        elapsed_time = 0
-        for i in range(len(safe_prompts)):
-            prompt = safe_prompts[i]
-            if ec_variant == "RandEC":
-                harmful = erase_and_check(
-                    prompt,
-                    pipeline,
-                    tokenizer,
-                    max_erase=2 * max_erase,
-                    randomized=True,
-                    prompt_sampling_ratio=frac,
-                )
-            elif ec_variant == "GreedyEC":
-                harmful = greedy_ec(
-                    prompt, model, tokenizer, num_iters=int(frac * max_erase)
-                )
-            elif ec_variant == "GradEC":
-                harmful, _ = grad_ec(
-                    prompt,
-                    model,
-                    tokenizer,
-                    model.distilbert.embeddings.word_embeddings,
-                    num_iters=int(2 * frac * max_erase),
-                )
-            elif ec_variant == "GreedyGradEC":
-                harmful = greedy_grad_ec(
-                    prompt,
-                    model,
-                    tokenizer,
-                    model.distilbert.embeddings.word_embeddings,
-                    num_iters=int(2 * frac * max_erase),
-                )
+        print("    Safe Prompts: ")
+        percent_match, time_per_prompt,percent_matches_se, time_per_prompt_se = check_is_harmful_evaltype_safe(eval_type="roc_curve",prompts=safe_prompts, model= model, mode="harmful",num_prompts, max_erase, num_adv, randomize,sampling_ratio,llm_name, tokenizer= tokenizer,max_llm_sequence_len= None)
 
-            if harmful:
-                count_harmful += 1
+        
 
-            # current_time = time.time()
-            # time_list.append(current_time - start_time - elapsed_time)
-            # elapsed_time = current_time - start_time
-            # time_per_prompt = elapsed_time / (i + 1)
-            time_list, time_per_prompt = calculate_time(start_time,  elapsed_time,i )
+        roc["fpr"].append(percent_match)
 
-            percent_harmful = count_harmful / (i + 1) * 100
-            print(
-                "    Safe Prompts: "
-                + progress_bar((i + 1) / len(safe_prompts))
-                + f" Detected harmful = {percent_harmful:5.1f}%"
-                + f" Time/prompt = {time_per_prompt:5.1f}s",
-                end="\r",
-                flush=True,
-            )
 
-        print("")
 
-        roc["fpr"].append(percent_harmful)
+    
 
     roc["fpr"].append(100)
     roc["tpr"].append(100)
@@ -734,32 +464,8 @@ elif eval_type == "harmful":
     #     for p in prompts: prompts_adv.append(p + adv_suffix)
     #     prompts = prompts_adv
 
-    percent_safe, time_per_prompt,percent_safe_se, time_per_prompt_se = check_is_harmful_evaltype_harmful(prompts, pipeline, tokenizer,mode ,num_prompts, max_erase, num_adv, randomize,sampling_ratio,llm_name, model=None,  max_llm_sequence_len= None)
-    # # Check if the prompts are harmful
-    # count_harmful = 0
-    # batch_size = 10
-    # start_time = time.time()
-    # for i in range(0, num_prompts, batch_size):
-    #     batch = prompts[i : i + batch_size]
-    #     # Evaluating the safety filter gives us certifed safety guarantees on
-    #     # erase_and_check for harmful prompts (from construction).
-    #     harmful = is_harmful(batch, pipeline, tokenizer, llm_name=llm_name)
-    #     count_harmful += sum(harmful)
-
-    #     current_time = time.time()
-    #     elapsed_time = current_time - start_time
-    #     time_per_prompt = elapsed_time / (i + batch_size)
-
-    #     num_done = i + batch_size
-    #     percent_harmful = count_harmful / num_done * 100
-        # print(
-        #     "    Checking safety... "
-        #     + progress_bar(num_done / num_prompts)
-        #     + f" Detected harmful = {percent_harmful:5.1f}%"
-        #     + f" Time/prompt = {time_per_prompt:5.1f}s",
-        #     end="\r",
-        #     flush=True,
-        # )
+    
+    percent_harmful, time_per_prompt,percent_harmful_se, time_per_prompt_se = check_is_harmful_evaltype_harmful(mode= "harmful", eval_type ="harmful", prompts, pipeline, mode ,num_prompts, max_erase, num_adv, randomize,sampling_ratio,llm_name, tokenizer,num_iters, model=None,  max_llm_sequence_len= None)
 
     # Save results
     results["percent_harmful"] = percent_harmful
