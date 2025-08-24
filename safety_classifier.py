@@ -5,6 +5,9 @@
 
 # note： env config！
 
+# 该程序的目的：确保原本安全的prompt经过该操作后，不会被错杀，仍被识别为正确，而原本harmful的文件，仍然被准确识别出来
+# 核心任务：文本分类任务（即harmful prompts+ safe_prompts_after_OP）
+# 文本分类的模型：本代码中使用的是bert，实际上可以改动的
 
 ### Importing libraries
 import argparse
@@ -20,29 +23,39 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report
 from transformers import DistilBertTokenizer, DistilBertForSequenceClassification
 from torch.utils.data import TensorDataset, DataLoader, WeightedRandomSampler, SequentialSampler
+from bashargs_parse_config import create_parser
 
 # specify the available devices
 device = torch.device("cuda" if torch.cuda.is_available() else "CPU")
+
+
+
+
 # ——————————————————————********——————————————————————————————
-## Function for reading the given file
+
 def read_text(filename):	
   with open(filename, "r") as f:
     lines = f.readlines()
     lines = [l.strip() for l in lines]  # 去掉每一行首尾的空白字符
   return pd.DataFrame(lines)
 
+
+
 # Set seed
 seed = 912
 
-## Parser for setting input values
-parser = argparse.ArgumentParser(description='Adversarial masks for the safety classifier.')
-parser.add_argument('--safe_train', type=str, default='data/safe_prompts_train_insertion_erased.txt', help='File containing safe prompts for training')
-parser.add_argument('--harmful_train', type=str, default='data/harmful_prompts_train.txt', help='File containing harmful prompts for training')
-parser.add_argument('--safe_test', type=str, default='data/safe_prompts_test_insertion_erased.txt', help='File containing safe prompts for testing')
-parser.add_argument('--harmful_test', type=str, default='data/harmful_prompts_test.txt', help='File containing harmful prompts for testing')
-parser.add_argument('--save_path', type=str, default='models/distilbert_insertion.pt', help='Path to save the model')
+# ## Parser for setting input values
+# parser = argparse.ArgumentParser(description='Adversarial masks for the safety classifier.')
+# parser.add_argument('--safe_train', type=str, default='data/safe_prompts_train_insertion_erased.txt', help='File containing safe prompts for training')
+# parser.add_argument('--harmful_train', type=str, default='data/harmful_prompts_train.txt', help='File containing harmful prompts for training')
+# parser.add_argument('--safe_test', type=str, default='data/safe_prompts_test_insertion_erased.txt', help='File containing safe prompts for testing')
+# parser.add_argument('--harmful_test', type=str, default='data/harmful_prompts_test.txt', help='File containing harmful prompts for testing')
+# parser.add_argument('--save_path', type=str, default='models/distilbert_insertion.pt', help='Path to save the model')
+
+
 
 # 获取命令中的参数,具体的参数需要用属性的方式来获取并访问
+parser = create_parser()
 args = parser.parse_args()
 
 
@@ -64,19 +77,21 @@ train_text, val_text, train_labels, val_labels = train_test_split(prompt_data_tr
 # Count number of samples in each class in the training set
 count = train_labels.value_counts().to_dict()
 
+
 # ------------------构建模型---------------------
 # Load the tokenizer
 # 配置国内镜像站点，使模型能更快地加载起来
 import os
 os.environ['HF_ENDPOINT'] = 'https://hf-mirror.com'
-
 tokenizer = DistilBertTokenizer.from_pretrained('distilbert-base-uncased')
-
-
 
 # pass the pre-trained DistilBert to our define architecture
 model = DistilBertForSequenceClassification.from_pretrained('distilbert-base-uncased')
 # print(model)
+
+# 切换模型
+# import fasttext
+# model = fasttext.train_supervised('train.txt')
 
 
 # -------------------数据预处理----------------
@@ -135,6 +150,9 @@ model = model.to(device)
 # define the optimizer
 optimizer = AdamW(model.parameters(), lr = 1e-5)          # learning rate
 
+
+
+
 # ----------------模型训练----------------
 # from sklearn.utils.class_weight import compute_class_weight
 
@@ -156,7 +174,7 @@ loss_fn = nn.CrossEntropyLoss()
 # loss_fn = nn.NLLLoss()
 
 # number of training epochs
-epochs = 10
+# epochs = 2  # 在config中指定
 
 # function to train the model
 def train():
@@ -216,6 +234,9 @@ def train():
   #returns the loss and predictions
   return avg_loss, total_preds
 
+
+
+# ----------------模型验证----------------
 # function for evaluating the model
 def evaluate():
   
@@ -271,50 +292,62 @@ def evaluate():
 
 
 
-# set initial loss to infinite,确保第一次的模型，一定会被保存
-best_validation_loss = float('inf')
 
-# empty lists to store training and validation loss of each epoch
-training_losses=[]
-validation_losses=[]
-train_flag = True
+def train_progress(epochs):
 
-# train_flag 可以控制是否进行训练的标识
-if train_flag == True:
-    # for each epoch
-    for epoch in range(epochs):
+  # set initial loss to infinite,确保第一次的模型，一定会被保存
+  best_validation_loss = float('inf')
+
+  # empty lists to store training and validation loss of each epoch
+  training_losses=[]
+  validation_losses=[]
+  train_flag = True
+
+  # train_flag 可以控制是否进行训练的标识
+  if train_flag == True:
+      # for each epoch
+      for epoch in range(epochs):
+          
+          print('\n Epoch {:} / {:}'.format(epoch + 1, epochs))
         
-        print('\n Epoch {:} / {:}'.format(epoch + 1, epochs))
-      
-        #train model
-        training_loss, _ = train()
-      
-        #evaluate model
-        validation_loss, _ = evaluate()
-      
-        #save the best model
-        if validation_loss < best_validation_loss:
-            best_validation_loss = validation_loss
-            torch.save(model.state_dict(), args.save_path)
-            # torch.save(model.state_dict(), 'new_distillbert_saved_weights.pt')
+          #train model
+          training_loss, _ = train()
         
-        # append training and validation loss
-        training_losses.append(training_loss)
-        validation_losses.append(validation_loss)
+          #evaluate model
+          validation_loss, _ = evaluate()
         
-        print(f'\nTraining Loss: {training_loss:.3f}')
-        print(f'Validation Loss: {validation_loss:.3f}')
+          #save the best model
+          if validation_loss < best_validation_loss:
+              best_validation_loss = validation_loss
+              torch.save(model.state_dict(), args.save_path)
+              # torch.save(model.state_dict(), 'new_distillbert_saved_weights.pt')
+          
+          # append training and validation loss
+          training_losses.append(training_loss)
+          validation_losses.append(validation_loss)
+          
+          print(f'\nTraining Loss: {training_loss:.3f}')
+          print(f'Validation Loss: {validation_loss:.3f}')
+  return training_losses, validation_losses
+
+training_losses, validation_losses = train_progress(epochs= epochs)
+
 
 # ----------------TEST----------------
-# Test safety classifier
+# safe_prompt默认路径：data/safe_prompts_test_insertion_erased.txt （即对完全安全的prompt进行操作处理后的文本呢）
 safe_prompt_test = read_text(args.safe_test)
+# harm_prompt_test默认路径：data/harmful_prompts_test.txt
 harm_prompt_test = read_text(args.harmful_test)
 prompt_data_test = pd.concat([safe_prompt_test, harm_prompt_test], ignore_index=True)
+# 安全的prompt标记为0，异常的标记为1，然后拼接到一起
 prompt_data_test['Y'] = pd.Series(np.concatenate([np.ones(safe_prompt_test.shape[0]), np.zeros(harm_prompt_test.shape[0])])).astype(int)
 
 test_text = prompt_data_test[0]
 test_labels = prompt_data_test['Y']
 
+
+
+# TODO: 这里注释的含义？
 # tokenize and encode sequences in the test set
 tokens_test = tokenizer.batch_encode_plus(
     test_text.tolist(),
@@ -322,6 +355,7 @@ tokens_test = tokenizer.batch_encode_plus(
     pad_to_max_length=True,
     truncation=True
 )
+
 
 # 直观地查看tokens_test
 print(tokens_test)
@@ -337,7 +371,7 @@ path = args.save_path
 model.load_state_dict(torch.load(path))
 model.eval()
 
-# get predictions for test data
+
 # 预测时，两个输入参数：test_seq和test_mask，分别对应输入的文本序列和对应的mask
 with torch.no_grad():
   preds = model(test_seq.to(device), test_mask.to(device))[0]
