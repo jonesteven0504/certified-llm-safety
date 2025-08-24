@@ -14,6 +14,7 @@ import argparse
 import warnings
 import numpy as np
 import pandas as pd
+
 warnings.filterwarnings("ignore")
 
 import torch
@@ -22,23 +23,26 @@ from transformers import AdamW
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report
 from transformers import DistilBertTokenizer, DistilBertForSequenceClassification
-from torch.utils.data import TensorDataset, DataLoader, WeightedRandomSampler, SequentialSampler
+from torch.utils.data import (
+    TensorDataset,
+    DataLoader,
+    WeightedRandomSampler,
+    SequentialSampler,
+)
 from bashargs_parse_config import create_parser
 
 # specify the available devices
 device = torch.device("cuda" if torch.cuda.is_available() else "CPU")
 
 
-
-
 # ——————————————————————********——————————————————————————————
 
-def read_text(filename):	
-  with open(filename, "r") as f:
-    lines = f.readlines()
-    lines = [l.strip() for l in lines]  # 去掉每一行首尾的空白字符
-  return pd.DataFrame(lines)
 
+def read_text(filename):
+    with open(filename, "r") as f:
+        lines = f.readlines()
+        lines = [l.strip() for l in lines]  # 去掉每一行首尾的空白字符
+    return pd.DataFrame(lines)
 
 
 # Set seed
@@ -53,11 +57,9 @@ seed = 912
 # parser.add_argument('--save_path', type=str, default='models/distilbert_insertion.pt', help='Path to save the model')
 
 
-
 # 获取命令中的参数,具体的参数需要用属性的方式来获取并访问
 parser = create_parser()
 args = parser.parse_args()
-
 
 
 # Load safe and harmful prompts and create the dataset for training classifier
@@ -65,14 +67,20 @@ args = parser.parse_args()
 safe_prompt_train = read_text(args.safe_train)
 harm_prompt_train = read_text(args.harmful_train)
 prompt_data_train = pd.concat([safe_prompt_train, harm_prompt_train], ignore_index=True)
-prompt_data_train['Y'] = pd.Series(np.concatenate([np.ones(safe_prompt_train.shape[0]), np.zeros(harm_prompt_train.shape[0])])).astype(int)
+prompt_data_train["Y"] = pd.Series(
+    np.concatenate(
+        [np.ones(safe_prompt_train.shape[0]), np.zeros(harm_prompt_train.shape[0])]
+    )
+).astype(int)
 
 # Split train dataset into train and validation sets
-train_text, val_text, train_labels, val_labels = train_test_split(prompt_data_train[0], 
-								prompt_data_train['Y'], 
-								random_state=seed, 
-								test_size=0.2,
-								stratify=prompt_data_train['Y'])
+train_text, val_text, train_labels, val_labels = train_test_split(
+    prompt_data_train[0],
+    prompt_data_train["Y"],
+    random_state=seed,
+    test_size=0.2,
+    stratify=prompt_data_train["Y"],
+)
 
 # Count number of samples in each class in the training set
 count = train_labels.value_counts().to_dict()
@@ -82,11 +90,12 @@ count = train_labels.value_counts().to_dict()
 # Load the tokenizer
 # 配置国内镜像站点，使模型能更快地加载起来
 import os
-os.environ['HF_ENDPOINT'] = 'https://hf-mirror.com'
-tokenizer = DistilBertTokenizer.from_pretrained('distilbert-base-uncased')
+
+os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
+tokenizer = DistilBertTokenizer.from_pretrained("distilbert-base-uncased")
 
 # pass the pre-trained DistilBert to our define architecture
-model = DistilBertForSequenceClassification.from_pretrained('distilbert-base-uncased')
+model = DistilBertForSequenceClassification.from_pretrained("distilbert-base-uncased")
 # print(model)
 
 # 切换模型
@@ -95,32 +104,29 @@ model = DistilBertForSequenceClassification.from_pretrained('distilbert-base-unc
 
 
 # -------------------数据预处理----------------
-# tokenize and encode sequences in the training set
-tokens_train = tokenizer.batch_encode_plus(
-    train_text.tolist(),
-    max_length = 25,  # TODO:该参数作用？
-    pad_to_max_length=True,
-    truncation=True # 该参数？
+
+
+def make_tokenstext_mask(text, labels):
+    tokens_text = tokenizer.batch_encode_plus(
+        text.tolist(),
+        max_length=25,  # TODO:该参数作用？
+        pad_to_max_length=True,
+        truncation=True,  # 该参数？
+    )
+    ## Convert lists to tensors for train split
+    text_seq = torch.tensor(tokens_text["input_ids"])
+    text_mask = torch.tensor(tokens_text["attention_mask"])
+    text_y = torch.tensor(labels.tolist())
+
+    return tokens_text, text_seq, text_mask, text_y
+
+
+sample_weights = torch.tensor([1 / count[i] for i in train_labels])
+tokens_train, train_seq, train_mask, train_y = make_tokenstext_mask(
+    train_text, train_labels
 )
+tokens_val, val_seq, val_mask, val_y = make_tokenstext_mask(val_text, val_labels)
 
-# tokenize and encode sequences in the validation set
-tokens_val = tokenizer.batch_encode_plus(
-    val_text.tolist(),
-    max_length = 25,
-    pad_to_max_length=True,
-    truncation=True
-)
-
-## Convert lists to tensors for train split
-train_seq = torch.tensor(tokens_train['input_ids'])
-train_mask = torch.tensor(tokens_train['attention_mask'])
-train_y = torch.tensor(train_labels.tolist())
-sample_weights = torch.tensor([1/count[i] for i in train_labels])
-
-## Convert lists to tensors for validation split
-val_seq = torch.tensor(tokens_val['input_ids'])
-val_mask = torch.tensor(tokens_val['attention_mask'])
-val_y = torch.tensor(val_labels.tolist())
 
 # define the batch size
 batch_size = 32
@@ -142,15 +148,13 @@ val_data = TensorDataset(val_seq, val_mask, val_y)
 val_sampler = SequentialSampler(val_data)
 
 # dataLoader for validation set
-val_dataloader = DataLoader(val_data, sampler = val_sampler, batch_size=batch_size)
+val_dataloader = DataLoader(val_data, sampler=val_sampler, batch_size=batch_size)
 
 # push the model to GPU
 model = model.to(device)
 
 # define the optimizer
-optimizer = AdamW(model.parameters(), lr = 1e-5)          # learning rate
-
-
+optimizer = AdamW(model.parameters(), lr=1e-5)  # learning rate
 
 
 # ----------------模型训练----------------
@@ -168,169 +172,169 @@ optimizer = AdamW(model.parameters(), lr = 1e-5)          # learning rate
 # weights = weights.to(device)
 
 # define the loss function
-# loss_fn  = nn.NLLLoss(weight=weights) 
-# loss_fn  = nn.CrossEntropyLoss(weight=weights)
-loss_fn = nn.CrossEntropyLoss()
-# loss_fn = nn.NLLLoss()
+# 原始的命令行中是str，需要变成函数
+loss_fn = eval(args.loss_fn)
+
 
 # number of training epochs
 # epochs = 2  # 在config中指定
+epochs = args.epochs
 
+
+# TODO: 这里的训练程序，应该改为模型无关
 # function to train the model
 def train():
 
-  model.train()
-  total_loss, total_accuracy = 0, 0
-  
-  # empty list to save model predictions
-  total_preds=[]
-  
-  # iterate over batches
-  for step, batch in enumerate(train_dataloader):
-    
-    # progress update after every 50 batches.
-    if (step + 1) % 50 == 0 or step == len(train_dataloader) - 1:
-      print('  Batch {:>5,}  of  {:>5,}.'.format(step + 1, len(train_dataloader)))
+    model.train()
+    total_loss, total_accuracy = 0, 0
 
-    # push the batch to gpu
-    batch = [r.to(device) for r in batch]
- 
-    sent_id, mask, labels = batch
+    # empty list to save model predictions
+    total_preds = []
 
-    # clear previously calculated gradients 
-    model.zero_grad()     
+    # iterate over batches
+    for step, batch in enumerate(train_dataloader):
 
-    # get model predictions for the current batch
-    preds = model(sent_id, mask)[0]
+        # progress update after every 50 batches.
+        if (step + 1) % 50 == 0 or step == len(train_dataloader) - 1:
+            print("  Batch {:>5,}  of  {:>5,}.".format(step + 1, len(train_dataloader)))
 
-    # compute the loss between actual and predicted values
-    loss = loss_fn(preds, labels)
+        # push the batch to gpu
+        batch = [r.to(device) for r in batch]
 
-    # add on to the total loss
-    total_loss = total_loss + loss.item()
+        sent_id, mask, labels = batch
 
-    # backward pass to calculate the gradients
-    loss.backward()
+        # clear previously calculated gradients
+        model.zero_grad()
 
-    # clip the the gradients to 1.0. It helps in preventing the exploding gradient problem
-    torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+        # get model predictions for the current batch
+        preds = model(sent_id, mask)[0]
 
-    # update parameters
-    optimizer.step()
+        # compute the loss between actual and predicted values
+        loss = loss_fn(preds, labels)
 
-    # model predictions are stored on GPU. So, push it to CPU
-    preds=preds.detach().cpu().numpy()
+        # add on to the total loss
+        total_loss = total_loss + loss.item()
 
-    # append the model predictions
-    total_preds.append(preds)
+        # backward pass to calculate the gradients
+        loss.backward()
 
-  # compute the training loss of the epoch
-  avg_loss = total_loss / len(train_dataloader)
-  
-  # predictions are in the form of (no. of batches, size of batch, no. of classes).
-  # reshape the predictions in form of (number of samples, no. of classes)
-  total_preds  = np.concatenate(total_preds, axis=0)
+        # clip the the gradients to 1.0. It helps in preventing the exploding gradient problem
+        torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
 
-  #returns the loss and predictions
-  return avg_loss, total_preds
+        # update parameters
+        optimizer.step()
 
+        # model predictions are stored on GPU. So, push it to CPU
+        preds = preds.detach().cpu().numpy()
+
+        # append the model predictions
+        total_preds.append(preds)
+
+    # compute the training loss of the epoch
+    avg_loss = total_loss / len(train_dataloader)
+
+    # predictions are in the form of (no. of batches, size of batch, no. of classes).
+    # reshape the predictions in form of (number of samples, no. of classes)
+    total_preds = np.concatenate(total_preds, axis=0)
+
+    # returns the loss and predictions
+    return avg_loss, total_preds
 
 
 # ----------------模型验证----------------
-# function for evaluating the model
+# TODO: 这里的验证程序，应该改为模型无关
 def evaluate():
-  
-  print("\nEvaluating...")
-  
-  # deactivate dropout layers
-  model.eval()
 
-  total_loss, total_accuracy = 0, 0
-  
-  # empty list to save the model predictions
-  total_preds = []
+    print("\nEvaluating...")
 
-  # iterate over batches
-  for step,batch in enumerate(val_dataloader):
-    
-    # Progress update every 50 batches.
-    if (step + 1) % 50 == 0 or step == len(val_dataloader) - 1:
-      
-      # Calculate elapsed time in minutes.
-      # elapsed = format_time(time.time() - t0)
-            
-      # Report progress.
-      print('  Batch {:>5,}  of  {:>5,}.'.format(step + 1, len(val_dataloader)))
+    # deactivate dropout layers
+    model.eval()
 
-    # push the batch to gpu
-    batch = [t.to(device) for t in batch]
+    total_loss, total_accuracy = 0, 0
 
-    sent_id, mask, labels = batch
+    # empty list to save the model predictions
+    total_preds = []
 
-    # deactivate autograd
-    with torch.no_grad():
-      
-      # model predictions
-      preds = model(sent_id, mask)[0]
+    # iterate over batches
+    for step, batch in enumerate(val_dataloader):
 
-      # compute the validation loss between actual and predicted values
-      loss = loss_fn(preds, labels)
+        # Progress update every 50 batches.
+        if (step + 1) % 50 == 0 or step == len(val_dataloader) - 1:
 
-      total_loss = total_loss + loss.item()
+            # Calculate elapsed time in minutes.
+            # elapsed = format_time(time.time() - t0)
 
-      preds = preds.detach().cpu().numpy()
+            # Report progress.
+            print("  Batch {:>5,}  of  {:>5,}.".format(step + 1, len(val_dataloader)))
 
-      total_preds.append(preds)
+        # push the batch to gpu
+        batch = [t.to(device) for t in batch]
 
-  # compute the validation loss of the epoch
-  avg_loss = total_loss / len(val_dataloader) 
+        sent_id, mask, labels = batch
 
-  # reshape the predictions in form of (number of samples, no. of classes)
-  total_preds = np.concatenate(total_preds, axis=0)
+        # deactivate autograd
+        with torch.no_grad():
 
-  return avg_loss, total_preds
+            # model predictions
+            preds = model(sent_id, mask)[0]
 
+            # compute the validation loss between actual and predicted values
+            loss = loss_fn(preds, labels)
 
+            total_loss = total_loss + loss.item()
+
+            preds = preds.detach().cpu().numpy()
+
+            total_preds.append(preds)
+
+    # compute the validation loss of the epoch
+    avg_loss = total_loss / len(val_dataloader)
+
+    # reshape the predictions in form of (number of samples, no. of classes)
+    total_preds = np.concatenate(total_preds, axis=0)
+
+    return avg_loss, total_preds
 
 
 def train_progress(epochs):
 
-  # set initial loss to infinite,确保第一次的模型，一定会被保存
-  best_validation_loss = float('inf')
+    # set initial loss to infinite,确保第一次的模型，一定会被保存
+    best_validation_loss = float("inf")
 
-  # empty lists to store training and validation loss of each epoch
-  training_losses=[]
-  validation_losses=[]
-  train_flag = True
+    # empty lists to store training and validation loss of each epoch
+    training_losses = []
+    validation_losses = []
+    train_flag = True
 
-  # train_flag 可以控制是否进行训练的标识
-  if train_flag == True:
-      # for each epoch
-      for epoch in range(epochs):
-          
-          print('\n Epoch {:} / {:}'.format(epoch + 1, epochs))
-        
-          #train model
-          training_loss, _ = train()
-        
-          #evaluate model
-          validation_loss, _ = evaluate()
-        
-          #save the best model
-          if validation_loss < best_validation_loss:
-              best_validation_loss = validation_loss
-              torch.save(model.state_dict(), args.save_path)
-              # torch.save(model.state_dict(), 'new_distillbert_saved_weights.pt')
-          
-          # append training and validation loss
-          training_losses.append(training_loss)
-          validation_losses.append(validation_loss)
-          
-          print(f'\nTraining Loss: {training_loss:.3f}')
-          print(f'Validation Loss: {validation_loss:.3f}')
-  return training_losses, validation_losses
+    # train_flag 可以控制是否进行训练的标识
+    if train_flag == True:
+        # for each epoch
+        for epoch in range(epochs):
 
-training_losses, validation_losses = train_progress(epochs= epochs)
+            print("\n Epoch {:} / {:}".format(epoch + 1, epochs))
+
+            # train model
+            training_loss, _ = train()
+
+            # evaluate model
+            validation_loss, _ = evaluate()
+
+            # save the best model
+            if validation_loss < best_validation_loss:
+                best_validation_loss = validation_loss
+                torch.save(model.state_dict(), args.save_path)
+                # torch.save(model.state_dict(), 'new_distillbert_saved_weights.pt')
+
+            # append training and validation loss
+            training_losses.append(training_loss)
+            validation_losses.append(validation_loss)
+
+            print(f"\nTraining Loss: {training_loss:.3f}")
+            print(f"Validation Loss: {validation_loss:.3f}")
+    return training_losses, validation_losses
+
+
+training_losses, validation_losses = train_progress(epochs=epochs)
 
 
 # ----------------TEST----------------
@@ -340,32 +344,19 @@ safe_prompt_test = read_text(args.safe_test)
 harm_prompt_test = read_text(args.harmful_test)
 prompt_data_test = pd.concat([safe_prompt_test, harm_prompt_test], ignore_index=True)
 # 安全的prompt标记为0，异常的标记为1，然后拼接到一起
-prompt_data_test['Y'] = pd.Series(np.concatenate([np.ones(safe_prompt_test.shape[0]), np.zeros(harm_prompt_test.shape[0])])).astype(int)
+prompt_data_test["Y"] = pd.Series(
+    np.concatenate(
+        [np.ones(safe_prompt_test.shape[0]), np.zeros(harm_prompt_test.shape[0])]
+    )
+).astype(int)
 
 test_text = prompt_data_test[0]
-test_labels = prompt_data_test['Y']
+test_labels = prompt_data_test["Y"]
 
 
+tokens_test, test_seq, test_mask, test_y = make_tokenstext_mask(test_text, test_labels)
 
-# TODO: 这里注释的含义？
-# tokenize and encode sequences in the test set
-tokens_test = tokenizer.batch_encode_plus(
-    test_text.tolist(),
-    max_length = 25,
-    pad_to_max_length=True,
-    truncation=True
-)
-
-
-# 直观地查看tokens_test
-print(tokens_test)
-
-# convert lists to tensors
-test_seq = torch.tensor(tokens_test['input_ids'])
-test_mask = torch.tensor(tokens_test['attention_mask'])
-test_y = torch.tensor(test_labels.tolist())
-
-#load weights of best model
+# load weights of best model
 path = args.save_path
 # path = 'new_distillbert_saved_weights.pt'
 model.load_state_dict(torch.load(path))
@@ -374,10 +365,12 @@ model.eval()
 
 # 预测时，两个输入参数：test_seq和test_mask，分别对应输入的文本序列和对应的mask
 with torch.no_grad():
-  preds = model(test_seq.to(device), test_mask.to(device))[0]
-  preds = preds.detach().cpu().numpy()
+    preds = model(test_seq.to(device), test_mask.to(device))[0]
+    preds = preds.detach().cpu().numpy()
 
 # 返回最终的预测结果标签（原始preds中每一列记录了对不同类别的预测概率）
-preds = np.argmax(preds, axis = 1)
-print(f'Testing Accuracy = {100*torch.sum(torch.tensor(preds) == test_y)/test_y.shape[0]}%')
+preds = np.argmax(preds, axis=1)
+print(
+    f"Testing Accuracy = {100*torch.sum(torch.tensor(preds) == test_y)/test_y.shape[0]}%"
+)
 print(classification_report(test_y, preds))

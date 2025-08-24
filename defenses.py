@@ -42,6 +42,8 @@ PREFIXES_LLAMA_13B = ["Understood",
             ]
 
 
+# TODO: 这里的几个策略函数，应该可以重构? 或者用多态实现？
+
 def is_harmful(prompts, pipeline, tokenizer, no_sys_prompt=False, min_length=5, llm_name='Llama-2', max_llm_sequence_len=200):
     """
     Check whether each prompt in the list of prompts is harmful or not.

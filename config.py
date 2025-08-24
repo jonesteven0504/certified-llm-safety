@@ -9,7 +9,7 @@ EVAL_FILE_PATTERNS = {
     "roc_curve": f"{eval_type}_{max_erase}"
 }
 
-# 使用不同的模型
+# 使用不同的模型，测试大模型生成的文本的效果
 MODEL_CONFIGS: dict[str, dict] = {
     "Llama-2": {
         "model_name": "meta-llama/Llama-2-7b-chat-hf",
@@ -30,6 +30,19 @@ MODEL_CONFIGS: dict[str, dict] = {
         "commit_id": "08751db2aca9bf2f7f80d2e516117a53d7450235",  # to reproduce the results in our paper
     },
 }
+
+
+# 使用不同的模型，训练优化：safe_classifier的效果（安全分类器）
+MODEL_CLASSIFIER_CONFIGS: dict[str, dict] = {
+    "BERT": {
+        
+    }, 
+    "fasttext": {
+        
+    },
+    
+}
+
 
 
 

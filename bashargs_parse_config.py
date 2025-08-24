@@ -165,9 +165,24 @@ def create_parser():
     train_group.add_argument(
         "--epochs",
         type=int,
-        default=10,
+        default=2,
     )
-    
+    train_group.add_argument(
+        "--batch_size",
+        type=int,
+        default=16,
+    )
+    train_group.add_argument(
+        "--learning_rate",
+        type=float,
+        default=1e-5,
+    )
+    train_group.add_argument(
+        "--loss_fn",
+        type=str,
+        default="nn.CrossEntropyLoss()",
+        help="直接指定损失函数，如: nn.CrossEntropyLoss(), nn.MSELoss(), nn.NLLLoss(weight=weights)"
+    )
     return parser
 
 
