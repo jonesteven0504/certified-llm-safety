@@ -8,6 +8,7 @@ from tqdm import tqdm
 # 定义了PromptDataSet数据结构和相应的方法
 
 
+# TODO: 测试该prompt的通用性？
 class PromptDataset(Dataset):
     def __init__(self, prompts, input_ids, mask, labels):
         self.prompts = prompts
