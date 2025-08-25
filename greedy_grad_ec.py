@@ -109,6 +109,8 @@ def greedy_grad_ec(prompt, model, tokenizer, word_embeddings,
         # Otherwise, update tokens
         tokens = erased_subsequence
 
+    # TODO: 测试新加一句代码
+    print("test git")
     if output_subsequence:
         return False, prompt
     return False
