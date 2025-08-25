@@ -113,6 +113,12 @@ def greedy_grad_ec(prompt, model, tokenizer, word_embeddings,
         return False, prompt
     return False
 
+
+# TODO: 定义一个新的greedy函数
+def  greedy():
+    # 仅供测试
+    return None
+
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description='Adversarial masks for the safety classifier.')
